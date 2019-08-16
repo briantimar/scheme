@@ -11,10 +11,9 @@ def repl():
             except (SyntaxError, ValueError) as e:
                 print(e) 
                 continue
-            
     except EOFError:
         print("Bye!")
-        exit()
+        return
 
 if __name__ == "__main__":
     repl()

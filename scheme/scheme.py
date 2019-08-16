@@ -45,6 +45,12 @@ def add(args, env):
     return sum(args)
 def sub(args, env):
     return args[0] - sum(args[1:])
+def mul(args, env):
+    p = 1
+    for a in args:
+        p *= a
+    return p
+
 def define(args, env):
     name, val = args
     env[name] = val
@@ -52,6 +58,7 @@ def define(args, env):
 
 BUILTIN_OPS = {'+': add, 
                '-': sub, 
+               '*': mul,
                'define': define}
 
 def is_builtin(exp):
@@ -88,7 +95,7 @@ def evaluate_primitive(expression):
         return evaluate_numeric_literal(expression)
     elif is_string_literal(expression):
         return evaluate_string_literal(expression)
-    raise SyntaxError
+    raise SyntaxError(f"Invalid primitive expression: {expression}")
 
 def lookup_variable(exp, env):
     """ Look up the value variable <exp> is bound to. 
@@ -97,6 +104,12 @@ def lookup_variable(exp, env):
         return env[exp]
     except KeyError:
         raise SyntaxError(f"Name {exp} is not defined!")
+
+def check_simple(expression):
+    if '(' in expression or ')' in expression:
+        raise SyntaxError("Imbalanced parentheses")
+    if ' ' in expression:
+        raise SyntaxError("One expression at a time please")
 
 def evaluate_simple(exp, env):
     """Evaluate a simple (non-compound) expression"""
@@ -113,8 +126,7 @@ def parse(expression):
     if len(expression) == 0:
         return [expression]
     if not is_potential_compound(expression):
-        if '(' in expression or ')' in expression:
-            raise SyntaxError
+        check_simple(expression)
         return [expression]
 
     # token which indicates the start of a new compound expression
@@ -141,7 +153,7 @@ def parse(expression):
                 words.append(word)
                 word = ''
     if depth != -1:
-        raise SyntaxError
+        raise SyntaxError("Imbalanced parentheses")
         
     return words
 
@@ -164,16 +176,19 @@ def evaluate_words(expression, env):
     """Evaluate the words in the expression provided."""
 
     if not is_potential_compound(expression):
+        check_simple(expression)
         return [evaluate_simple(expression, env)]
 
     words = parse(expression)
+    if len(words) == 0:
+        return []
     #special case -- if we're defining a variable, there's no need to evaluate whatever comes next
     if words[0] == 'define':
         if len(words) != 3:
-            raise SyntaxError
+            raise SyntaxError(f"The 'define' keyword takes two args")
         name = words[1]
         if not is_valid_variable_name(name):
-            raise SyntaxError
+            raise SyntaxError(f"{name} is not a valid variable name")
         define = evaluate(words[0], env)
         val = evaluate(words[2], env)
         return [define, name, val]
@@ -182,6 +197,9 @@ def evaluate_words(expression, env):
     return results
 
 def evaluate(expression, env):
-    """ Evaluate expression in the given environment"""
+    """ Evaluate expression in the given environment
+    """
     results = evaluate_words(expression, env)
+    if len(results) == 0:
+        return []
     return combine(results, env)

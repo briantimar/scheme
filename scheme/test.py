@@ -58,11 +58,10 @@ class TestParse(unittest.TestCase):
 
     def test_parse(self):
         from .scheme import parse
-        tests = [('', ['']), ('2', ['2']), ('( 2)', ['2']), 
-                 ('((3) (4))', ['(3)', '(4)']), 
-                 ('( 4 5 5)', ['4', '5', '5']), 
-                 ('( define a (+ 3 2))', ['define', 'a', '(+ 3 2)']), 
-                 ('(- 4 5)', ['-', '4', '5'])
+        tests = [('', ['']), ('2', ['2']), ('( 2)', ['( 2)']), 
+                 ('2 4 5', ['2', '4', '5'] ),
+                 ('2 (+ 4 4)', ['2', '(+ 4 4)']), 
+                 ('((4))', ['((4))'])
                  ]
         for exp, words in tests:
             self.assertEqual(parse(exp), words)
@@ -70,7 +69,6 @@ class TestParse(unittest.TestCase):
         bad_expressions = ['(', ')', '()(2']
         for e in bad_expressions:
             with self.assertRaises(SyntaxError):
-                print(e,parse(e))
                 parse(e)
 
 
@@ -96,20 +94,27 @@ class TestEvaluate(unittest.TestCase):
 
     def test_evaluate_words(self):
         from .scheme import evaluate_words
-        from .scheme import define
+        from .scheme import Lambda
         env = {"a" : 3}
-        tests = [("(2)", [2]), 
-                  ("((2) (3))", [2, 3] ), 
-                  ("( 1 (2) 4)", [1, 2, 4] ),
-                  ('(a)', [3]), 
+        tests = [("2", [2]), 
+                  ("2 3", [2, 3] ), 
+                  ("1 a 4", [1, 3, 4] ),
                   ]
         for expr, res in tests:
             self.assertEqual(evaluate_words(expr, env), res)
+        res = evaluate_words("define a 2", env)
+        self.assertEqual(res[1:], ['a', 2])
+        self.assertEqual(env['a'], 3)
+
+        res = evaluate_words("define (double x) (* x 2)", env)
+        self.assertEqual(res[1], 'double')
+        self.assertTrue(isinstance(res[2], Lambda))
+        self.assertEqual(res[2].evaluate([2], env), 4)
 
     def test_evaluate(self):
         from .scheme import evaluate
         env = {"a" : 3}
-        tests = [("(2)", 2), 
+        tests = [("2", 2), 
                   ("(+ 2 3)", 5), 
                   ("(- 1 4)", -3), 
                   ("( + 1 (+ 3 (4)))", 8), 
@@ -120,12 +125,34 @@ class TestEvaluate(unittest.TestCase):
 
         r = evaluate("(define b 5)", env)
         self.assertEqual(r, 5)
-        r = evaluate("(b)", env)
+        r = evaluate("b", env)
         self.assertEqual(r, 5)
 
         __ = evaluate("(define a 7)", env)
         r = evaluate("(+ a b)", env)
         self.assertEqual(r, 12)
+
+class TestLambda(unittest.TestCase):
+
+    def test_evaluate(self):
+        from .scheme import Lambda
+        args = ['x']
+        env = {}
+        body = '( * x 2)'
+        f = Lambda(args, body)
+        arg_vals = [[x] for x in (0, 1, 5)]
+        for a in arg_vals:
+            self.assertEqual(f.evaluate(a, env), 2 * a[0])
+        self.assertEqual(len(env), 0)
+
+        args = ['x']
+        env = {'a': 3}
+        body = '(+ x a)'
+        f = Lambda(args, body)
+        self.assertEqual(f([2], env), 5)
+
+        with self.assertRaises(ValueError):
+            f([3, 4], env)
 
 if __name__ == "__main__":
     unittest.main()
